@@ -1,0 +1,143 @@
+# Whole stack: database, API, web page, and the two vLLM model servers (NVIDIA GPU needed for the model servers).
+#   docker compose up -d --build                       # db, api, web, embedding, llm
+#   docker compose --profile ingest run --rm ingest    # one-off: fetch, load, embed, link
+# Checkpoints are read from ./models (see README "Models").
+
+x-gpu: &gpu
+  driver: nvidia
+  capabilities: [gpu]
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: uiuc
+      POSTGRES_PASSWORD: uiuc
+      POSTGRES_DB: uiuc
+    ports:
+      # Host access for local tools (eval, psql) only; other containers use the compose network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uiuc"]
+      interval: 5s
+      retries: 10
+
+  embedding:
+    image: vllm/vllm-openai:v0.25.0
+    command:
+      - Qwen/Qwen3-Embedding-0.6B
+      - --served-model-name=Qwen3-Embedding-0.6B
+      - --runner=pooling
+      - --convert=embed
+      - --dtype=bfloat16
+      - --max-model-len=8192
+      - --max-num-seqs=16
+      - --max-num-batched-tokens=8192
+      - --gpu-memory-utilization=0.15
+    environment:
+      HF_HOME: /models
+      HF_HUB_OFFLINE: "1"
+    volumes:
+      - ./models:/models:ro
+    ports:
+      - "127.0.0.1:8032:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - <<: *gpu
+              device_ids: ["${EMBEDDING_GPU:-0}"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 10
+      start_period: 300s
+
+  llm:
+    image: vllm/vllm-openai:v0.25.0
+    command:
+      - cyankiwi/Qwen3.8-27B-AWQ-INT4
+      - --served-model-name=qwen3.8-27b
+      - --quantization=compressed-tensors
+      - --dtype=bfloat16
+      - --max-model-len=32768
+      - --gpu-memory-utilization=0.74
+      - --max-num-seqs=8
+      - --max-num-batched-tokens=8192
+      - --enable-prefix-caching
+      - --enable-auto-tool-choice
+      - --tool-call-parser=qwen3_coder
+      - --reasoning-parser=qwen3
+      - --trust-remote-code
+    environment:
+      HF_HOME: /models
+      HF_HUB_OFFLINE: "1"
+    volumes:
+      - ./models:/models:ro
+    ports:
+      - "127.0.0.1:8116:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - <<: *gpu
+              device_ids: ["${LLM_GPU:-0}"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 10
+      start_period: 600s
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://uiuc:uiuc@db:5432/uiuc
+      EMBEDDING_URL: http://embedding:8000/v1
+      LLM_URL: http://llm:8000/v1
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8100:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8100/api/health')"]
+      interval: 10s
+      retries: 6
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "5180:80"
+
+  ingest:
+    build: .
+    profiles: ["ingest"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://uiuc:uiuc@db:5432/uiuc
+      EMBEDDING_URL: http://embedding:8000/v1
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      embedding:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - >-
+        python -m ingestion.fetch_openalex &&
+        python -m ingestion.load_db &&
+        python -m ingestion.build_embeddings &&
+        python -m ingestion.link_authors
+
+volumes:
+  pgdata:

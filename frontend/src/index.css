@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+@import '@fontsource/newsreader/500.css';
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+
+/*
+ * Design tokens, named by role. Illinois brand: Illini Blue #13294B, Illini Orange #FF5F05.
+ * Contrast on white: primary 14.5:1, muted-fg 7.6:1, control-border 4.7:1, accent 3.05:1
+ * (accent is graphic-only: bars, rules, never body text).
+ */
+@theme {
+  --color-primary: #13294b;
+  --color-primary-fg: #ffffff;
+  --color-accent: #ff5f05;
+  --color-accent-fg: #13294b;
+  --color-bg: #ffffff;
+  --color-surface: #f4f6f9;
+  --color-fg: #0f1b33;
+  --color-muted-fg: #475569;
+  --color-border: #d5dbe5;
+  --color-control-border: #64748b;
+  --color-error: #b42318;
+
+  --font-sans: 'Atkinson Hyperlegible', system-ui, 'Segoe UI', sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+
+  --breakpoint-xs: 30rem;
+}
+
+:root {
+  --header-h: 7rem;
+  color-scheme: light;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --header-h: 4rem;
+  }
+}
+
+@layer base {
+  html {
+    scroll-padding-top: var(--header-h);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    color: var(--color-primary);
+    letter-spacing: -0.01em;
+  }
+  section[id] {
+    scroll-margin-top: var(--header-h);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  .on-primary :focus-visible {
+    outline-color: #ffffff;
+  }
+  dialog {
+    color: inherit;
+  }
+  dialog::backdrop {
+    background: rgb(15 27 51 / 0.55);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-control-border);
+    background: var(--color-bg);
+    color: var(--color-primary);
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background-color 150ms,
+      border-color 150ms;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--color-surface);
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-primary-fg);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #1d3a69;
+  }
+  .field {
+    min-height: 2.75rem;
+    width: 100%;
+    padding: 0 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-control-border);
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+  .card {
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-bg);
+  }
+  .fade-in {
+    animation: fade-in 180ms ease-out;
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #e8ecf2 25%, #f4f6f9 50%, #e8ecf2 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: 0.375rem;
+  }
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
